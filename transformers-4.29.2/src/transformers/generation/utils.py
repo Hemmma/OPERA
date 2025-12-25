@@ -3431,6 +3431,32 @@ class GenerationMixin:
             cur_response_lens = attn_local.shape[-1]
             attn_i = attn_last[:, :, -1, attn_pos["image_start"]:attn_pos["image_end"]+1].sum(-1)
             attn_scores = attn_i # [batch_size * num_beams, num_attn_candidates]
+            
+            # Debug output: Calculate and display attention statistics
+            # Get full attention for the last query position across all keys
+            attn_full = attn_last[:, :, -1, :]  # [batch_size * num_beams, num_attn_candidates, kv+1]
+            
+            # Calculate attention to non-image tokens
+            # Create a mask for non-image tokens
+            kv_len = attn_full.shape[-1]
+            mask = torch.ones(kv_len, dtype=torch.bool, device=attn_full.device)
+            mask[attn_pos["image_start"]:attn_pos["image_end"]+1] = False
+            
+            # Calculate average attention to other (non-image) tokens
+            attn_other = attn_full[:, :, mask]  # [batch_size * num_beams, num_attn_candidates, num_other_tokens]
+            attn_other_avg = attn_other.mean(-1)  # [batch_size * num_beams, num_attn_candidates]
+            
+            # Print debug information for the first beam and first candidate
+            attn_i_value = attn_i[0, 0].item()
+            attn_other_avg_value = attn_other_avg[0, 0].item()
+            ratio = attn_i_value / attn_other_avg_value if attn_other_avg_value > 0 else float('inf')
+            difference = attn_i_value - attn_other_avg_value
+            
+            print(f"[Attention Sink Detection] Step {cur_response_lens}")
+            print(f"  - Attention to image tokens (sink): {attn_i_value:.6f}")
+            print(f"  - Attention to other tokens (avg): {attn_other_avg_value:.6f}")
+            print(f"  - Ratio (sink/avg): {ratio:.2f}x")
+            print(f"  - Difference (sink-avg): {difference:.6f}")
 
             # We use the rollback scores to penalize the subsequent tokens
             rollback_scores, rollback_locs = attn_local_scores.max(-1) # [batch_size * num_beams, num_attn_candidates]
