@@ -3446,17 +3446,18 @@ class GenerationMixin:
             attn_other = attn_full[:, :, mask]  # [batch_size * num_beams, num_attn_candidates, num_other_tokens]
             attn_other_avg = attn_other.mean(-1)  # [batch_size * num_beams, num_attn_candidates]
             
-            # Print debug information for the first beam and first candidate
-            attn_i_value = attn_i[0, 0].item()
-            attn_other_avg_value = attn_other_avg[0, 0].item()
-            ratio = attn_i_value / attn_other_avg_value if attn_other_avg_value > 0 else float('inf')
-            difference = attn_i_value - attn_other_avg_value
-            
-            print(f"[Attention Sink Detection] Step {cur_response_lens}")
-            print(f"  - Attention to image tokens (sink): {attn_i_value:.6f}")
-            print(f"  - Attention to other tokens (avg): {attn_other_avg_value:.6f}")
-            print(f"  - Ratio (sink/avg): {ratio:.2f}x")
-            print(f"  - Difference (sink-avg): {difference:.6f}")
+            # Print debug information for the first beam and first candidate (with bounds checking)
+            if attn_i.shape[0] > 0 and attn_i.shape[1] > 0:
+                attn_i_value = attn_i[0, 0].item()
+                attn_other_avg_value = attn_other_avg[0, 0].item()
+                ratio = attn_i_value / attn_other_avg_value if attn_other_avg_value > 0 else float('inf')
+                difference = attn_i_value - attn_other_avg_value
+                
+                print(f"[Attention Sink Detection] Step {cur_response_lens}")
+                print(f"  - Attention to image tokens (sink): {attn_i_value:.6f}")
+                print(f"  - Attention to other tokens (avg): {attn_other_avg_value:.6f}")
+                print(f"  - Ratio (sink/avg): {ratio:.2f}x")
+                print(f"  - Difference (sink-avg): {difference:.6f}")
 
             # We use the rollback scores to penalize the subsequent tokens
             rollback_scores, rollback_locs = attn_local_scores.max(-1) # [batch_size * num_beams, num_attn_candidates]
